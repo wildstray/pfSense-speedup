@@ -1,0 +1,11 @@
+--- a/src/etc/inc/pfsense-utils.inc
++++ b/src/etc/inc/pfsense-utils.inc
+@@ -1775,7 +1775,7 @@
+        if ($ifinfo['status'] == "up") {
+                /* try to determine media with ifconfig */
+                $ifconfiginfo = [];
+-               exec("/sbin/ifconfig -v " . $ifinfo['if'], $ifconfiginfo);
++               exec("/sbin/ifconfig " . $ifinfo['if'], $ifconfiginfo);
+                $wifconfiginfo = [];
+                if (is_interface_wireless($ifdescr)) {
+                        exec("/sbin/ifconfig {$ifinfo['if']} list sta", $wifconfiginfo);
