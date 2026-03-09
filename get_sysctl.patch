@@ -1,0 +1,51 @@
+--- a/src/etc/inc/util.inc
++++ b/src/etc/inc/util.inc
+@@ -2359,29 +2359,33 @@
+  * Get values of sysctl OID's listed in $names (accepts an array or a single
+  * name) and return an array of key/value pairs set for those that exist
+  */
+-function get_sysctl($names) {
++function get_sysctl($names)
++{
++       static $data = null;
++       if ($data === null) {
++                $data = new stdClass();
++                $cmd="sysctl dev hw kern machdep vm.loadavg vm.pmap vm.uma.pf_states vm.uma.mbuf_cluster vm.stats";
++                $output=shell_exec($cmd);
++                $array = explode("\n", trim($output));
++                foreach ($array as $line) {
++                        list($key, $value) = explode(": ", $line);
++                        $data->$key = $value;
++               }
++       }
++
+        if (empty($names)) {
+                return array();
+        }
+
+-       if (is_array($names)) {
+-               $name_list = array();
+-               foreach ($names as $name) {
+-                       $name_list[] = escapeshellarg($name);
+-               }
+-       } else {
+-               $name_list = array(escapeshellarg($names));
+-       }
+-
+-       exec("/sbin/sysctl -iq " . implode(" ", $name_list), $output);
+        $values = array();
+-       foreach ($output as $line) {
+-               $line = explode(": ", $line, 2);
+-               if (count($line) == 2) {
+-                       $values[$line[0]] = $line[1];
++       if (!is_array($names)) {
++               $names = [$names];
++       }
++       foreach ($names as $name) {
++                if (property_exists($data, $name)) {
++                        $values[$name] = (is_numeric($data->{$name})) ? (int) $data->{$name} : $data->{$name};
+                }
+        }
+-
+        return $values;
+ }

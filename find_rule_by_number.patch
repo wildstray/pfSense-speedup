@@ -1,0 +1,47 @@
+--- a/src/etc/inc/syslog.inc
++++ b/src/etc/inc/syslog.inc
+@@ -1221,31 +1221,27 @@
+ }
+
+ function find_rule_by_number($rulenum, $trackernum, $type="block") {
+-       global $g;
+-
+        /* Passing arbitrary input to grep could be a Very Bad Thing(tm) */
+        if (!is_numeric($rulenum) || !is_numeric($trackernum) || !in_array($type, array('pass', 'block', 'match', 'rdr'))) {
+                return;
+        }
+-
+-       if ($trackernum == "0") {
+-               $lookup_pattern = "^@{$rulenum}\([0-9]+\)[[:space:]]{$type}[[:space:]].*[[:space:]]log[[:space:]]";
+-       } else {
+-               $lookup_pattern = "^@[0-9]+[[:space:]]{$type}[[:space:]].*[[:space:]]log[[:space:]].*[[:space:]]ridentifier[[:space:]]{$trackernum}";
+-       }
+-
+-       /* At the moment, miniupnpd is the only thing I know of that
+-          generates logging rdr rules */
+-       unset($buffer);
+-       if ($type == "rdr") {
+-               $_gb = exec("/sbin/pfctl -vvPsn -a \"miniupnpd\" | /usr/bin/egrep " . escapeshellarg("^@{$rulenum}"), $buffer);
+-       } else {
+-               $_gb = exec("/sbin/pfctl -vvPsr | /usr/bin/egrep " . escapeshellarg($lookup_pattern), $buffer);
+-       }
++        static $data_sr = null;
++        static $data_sn = null;
++        if ($data_sr === null) {
++                $cmd = "/sbin/pfctl -vvPsr";
++                $output = shell_exec($cmd);
++               $data_sr = explode("\n", $output);
++        }
++        if ($data_sn === null) {
++                $cmd = "/sbin/pfctl -vvPsn -a \"miniupnpd\"";
++                $output = shell_exec($cmd);
++                $data_sn = explode("\n", $output);
++        }
++        $lookup_pattern = ($trackernum == "0") ? "/^@{$rulenum}\([0-9]+\)\s+{$type}\s+.*\s+log\s+/" : "/^@[0-9]+\s+{$type}\s+.*\s+log\s+.*\s+ridentifier\s+{$trackernum}/";
++        $buffer = preg_grep($lookup_pattern, ($type == "rdr") ? $data_sn : $data_sr);
+        if (is_array($buffer)) {
+                return $buffer[0];
+        }
+-
+        return "";
+ }
