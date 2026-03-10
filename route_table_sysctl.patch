@@ -49,3 +49,24 @@
 -
         return $values;
  }
+@@ -2866,10 +2862,7 @@
+
+ /* Return system's route table */
+ function route_table() {
+-       static $rawdata = null;
+-       if ($rawdata === null) {
+-               exec("/usr/bin/netstat --libxo json -nWr", $rawdata, $rc);
+-       }
++       exec("/usr/bin/netstat --libxo json -nWr", $rawdata, $rc);
+
+        if ($rc != 0) {
+                return array();
+@@ -2990,7 +2983,7 @@
+                return '';
+        }
+
+-       $route = route_get('default', $ipprotocol, false);
++       $route = route_get('default', $ipprotocol, true);
+
+        if (empty($route)) {
+                return '';
