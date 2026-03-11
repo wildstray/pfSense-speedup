@@ -1,6 +1,23 @@
 --- a/src/etc/inc/syslog.inc
 +++ b/src/etc/inc/syslog.inc
-@@ -1221,31 +1221,27 @@
+@@ -1210,7 +1210,15 @@
+                return '';
+        }
+
+-       $service = getservbyport($port, $proto);
++       static $cache = [];
++       $key = "{$port}:{$proto}";
++       if (isset($cache[$key])) {
++               $service = $cache[$key];
++       } else {
++               $service = getservbyport($port, $proto);
++               $cache[$key] = $service;
++       }
++
+        $portstr = "";
+        if ($service) {
+                $portstr = sprintf('<span title="' . gettext('Service %1$s/%2$s: %3$s') . '">' . htmlspecialchars($port) . '</span>', $port, $proto, $service);
+@@ -1221,31 +1229,27 @@
  }
 
  function find_rule_by_number($rulenum, $trackernum, $type="block") {

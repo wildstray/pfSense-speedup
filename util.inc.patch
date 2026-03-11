@@ -1,6 +1,56 @@
 --- a/src/etc/inc/util.inc
 +++ b/src/etc/inc/util.inc
-@@ -2359,29 +2359,33 @@
+@@ -53,22 +53,37 @@
+        return sigkillbypid($pidfile, "TERM", $waitfor);
+ }
+ 
++function get_ps() {
++        static $data = null;
++        if ($data === null) {
++                $cmd = "ps aux --libxo json";
++                $data = json_decode(shell_exec($cmd));
++        }
++        return $data;
++}
++
++
+ function isvalidpid($pidfile) {
+-       $output = "";
+-       if (file_exists($pidfile)) {
+-               exec("/bin/pgrep -qnF {$pidfile} 2>/dev/null", $output, $retval);
+-               return (intval($retval) == 0);
+-       }
+-       return false;
++        if (file_exists($pidfile)) {
++                $data = get_ps();
++                $pid = trim(file_get_contents($pidfile));
++                foreach ($data->{'process-information'}->process as $p) {
++                        if ($p->pid == $pid)
++                                return true;
++                }
++        }
++        return false;
+ }
+ 
+ function is_process_running($process) {
+-       $output = "";
+-       if (!empty($process)) {
+-               exec("/bin/pgrep -anx " . escapeshellarg($process), $output, $retval);
+-               return (intval($retval) == 0);
+-       }
+-       return false;
++        if (!empty($process)) {
++                $data = get_ps();
++                foreach ($data->{'process-information'}->process as $p) {
++                        if (stripos($p->command, $process) !== false)
++                                return true;
++                }
++        }
++        return false;
+ }
+ 
+ function isvalidproc($proc) {
+@@ -2359,29 +2374,33 @@
   * Get values of sysctl OID's listed in $names (accepts an array or a single
   * name) and return an array of key/value pairs set for those that exist
   */
@@ -50,7 +100,7 @@
         return $values;
  }
 
-@@ -2862,7 +2866,10 @@
+@@ -2862,7 +2881,10 @@
 
  /* Return system's route table */
  function route_table() {
@@ -62,7 +112,7 @@
 
         if ($rc != 0) {
                 return array();
-@@ -2983,7 +2990,7 @@
+@@ -2983,7 +3005,7 @@
                 return '';
         }
 

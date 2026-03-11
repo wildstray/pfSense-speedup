@@ -1,10 +1,9 @@
 # pfSense-speedup
-A collection of pfSense System patches to speed up the dashboard
+A collection of pfSense System patches to speed up the dashboard. This is a WIP code review based on design patterns, avoid reiteration of exec(), shell_exec() and avoiding the execution of piped commands.
 
- - **find_rule_by_number_alt.patch**: alternative to find_rule_by_number() on log.widget.php
- - **find_rule_by_number.patch**: speed up of find_rule_by_number() on syslog.inc
- - **get_interface_info.patch**: little patch to get_interface_info() on pfsense-utils.inc
- - **mbuf_load.patch**: speedup of get_mbuf() and get_load_average() on functions.inc.php
- - **get_sysctl.patch**: speedup of get_sysctl() on util.inc
+ - **util.inc.patch**: speedup of isvalidpid(), is_process_running(), get_sysctl(), route_table() on util.inc
+ - **functions.inc.php.patch**: speedup of get_mbuf(), get_load_average() on functions.inc.php
+ - **pfsense-utils.inc.patch**: speedup of get_interface_info() on pfsense-utils.inc
+ - **syslog.inc.patch**: speedup of find_rule_by_number(), get_port_with_service() on syslog.inc
 
 **WARNING: this patches are tested with CE 2.7.2 only**
