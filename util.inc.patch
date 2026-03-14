@@ -1,19 +1,8 @@
 --- a/src/etc/inc/util.inc
 +++ b/src/etc/inc/util.inc
-@@ -53,22 +53,37 @@
-        return sigkillbypid($pidfile, "TERM", $waitfor);
+@@ -54,21 +54,26 @@
  }
  
-+function get_ps() {
-+        static $data = null;
-+        if ($data === null) {
-+                $cmd = "ps aux --libxo json";
-+                $data = json_decode(shell_exec($cmd));
-+        }
-+        return $data;
-+}
-+
-+
  function isvalidpid($pidfile) {
 -       $output = "";
 -       if (file_exists($pidfile)) {
@@ -21,14 +10,10 @@
 -               return (intval($retval) == 0);
 -       }
 -       return false;
-+        if (file_exists($pidfile)) {
-+                $data = get_ps();
-+                $pid = trim(file_get_contents($pidfile));
-+                foreach ($data->{'process-information'}->process as $p) {
-+                        if ($p->pid == $pid)
-+                                return true;
-+                }
-+        }
++       if (file_exists($pidfile)) {
++               $pid = (int)trim(file_get_contents($pidfile));
++               return ($pid > 0 && posix_kill($pid, 0));
++       }
 +        return false;
  }
  
@@ -39,8 +24,12 @@
 -               return (intval($retval) == 0);
 -       }
 -       return false;
-+        if (!empty($process)) {
-+                $data = get_ps();
++        static $data = null; 
++       if (!empty($process)) {
++                if ($data === null) {
++                       $cmd = "ps aux --libxo json";
++                       $data = json_decode(shell_exec($cmd));
++               } 
 +                foreach ($data->{'process-information'}->process as $p) {
 +                        if (stripos($p->command, $process) !== false)
 +                                return true;
@@ -50,29 +39,29 @@
  }
  
  function isvalidproc($proc) {
-@@ -2359,29 +2374,33 @@
+@@ -2359,29 +2364,33 @@
   * Get values of sysctl OID's listed in $names (accepts an array or a single
   * name) and return an array of key/value pairs set for those that exist
   */
 -function get_sysctl($names) {
 +function get_sysctl($names)
 +{
-+       static $data = null;
-+       if ($data === null) {
++               static $data = null;
++               if ($data === null) {
 +                $data = new stdClass();
-+                $cmd="sysctl dev hw kern machdep vm.loadavg vm.pmap vm.uma.pf_states vm.uma.mbuf_cluster vm.stats";
++                $cmd="sysctl dev hw kern machdep vm.pmap vm.uma.pf_states vm.uma.mbuf_cluster vm.stats";
 +                $output=shell_exec($cmd);
 +                $array = explode("\n", trim($output));
 +                foreach ($array as $line) {
 +                        list($key, $value) = explode(": ", $line);
 +                        $data->$key = $value;
++                       }
 +               }
-+       }
 +
         if (empty($names)) {
                 return array();
         }
-
+ 
 -       if (is_array($names)) {
 -               $name_list = array();
 -               foreach ($names as $name) {
@@ -88,10 +77,10 @@
 -               $line = explode(": ", $line, 2);
 -               if (count($line) == 2) {
 -                       $values[$line[0]] = $line[1];
-+       if (!is_array($names)) {
++               if (!is_array($names)) {
 +               $names = [$names];
-+       }
-+       foreach ($names as $name) {
++               }
++               foreach ($names as $name) {
 +                if (property_exists($data, $name)) {
 +                        $values[$name] = (is_numeric($data->{$name})) ? (int) $data->{$name} : $data->{$name};
                 }
@@ -100,19 +89,59 @@
         return $values;
  }
 
-@@ -2862,7 +2881,10 @@
+@@ -2862,29 +2871,31 @@
 
  /* Return system's route table */
  function route_table() {
 -       exec("/usr/bin/netstat --libxo json -nWr", $rawdata, $rc);
-+       static $rawdata = null;
-+       if ($rawdata === null) {
-+               exec("/usr/bin/netstat --libxo json -nWr", $rawdata, $rc);
-+       }
++        static $data = null;
++        if ($data === null) {
++                $rawdata = [];
++                exec("/usr/bin/netstat --libxo json -nWr", $rawdata, $rc);
++                if ($rc != 0) {
++                        return array();
++                }
++                $data = json_decode(implode(" ", $rawdata), JSON_OBJECT_AS_ARRAY);
++        }
 
-        if ($rc != 0) {
-                return array();
-@@ -2983,7 +3005,7 @@
+-       if ($rc != 0) {
+-               return array();
+-       }
++        $netstatarr = $data['statistics']['route-information']['route-table']['rt-family'];
+
+-       $netstatarr = json_decode(implode(" ", $rawdata), JSON_OBJECT_AS_ARRAY);
+-       $netstatarr = $netstatarr['statistics']['route-information']
+-           ['route-table']['rt-family'];
++        $result = array();
++        $result['inet'] = array();
++        $result['inet6'] = array();
++        foreach ($netstatarr as $item) {
++                if ($item['address-family'] == 'Internet') {
++                        $result['inet'] = $item['rt-entry'];
++                } else if ($item['address-family'] == 'Internet6') {
++                        $result['inet6'] = $item['rt-entry'];
++                }
++        }
++        unset($netstatarr);
+
+-       $result = array();
+-       $result['inet'] = array();
+-       $result['inet6'] = array();
+-       foreach ($netstatarr as $item) {
+-               if ($item['address-family'] == 'Internet') {
+-                       $result['inet'] = $item['rt-entry'];
+-               } else if ($item['address-family'] == 'Internet6') {
+-                       $result['inet6'] = $item['rt-entry'];
+-               }
+-       }
+-       unset($netstatarr);
+-
+-       return $result;
++        return $result;
+ }
+
+ /**
+@@ -2983,7 +2994,7 @@
                 return '';
         }
 

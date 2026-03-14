@@ -1,6 +1,122 @@
 --- a/src/etc/inc/syslog.inc
 +++ b/src/etc/inc/syslog.inc
-@@ -1210,7 +1210,15 @@
+@@ -605,42 +605,66 @@
+ 
+ function dump_log($logfile, $tail, $withorig = true, $grepfor = "", $grepinvert = "", $format = 'table', $grepreverse = false) {
+        global $g;
+-       $sor = (config_path_enabled('syslog', 'reverse') || $grepreverse) ? "-r" : "";
+        $specific_log = basename($logfile, '.log') . '_settings';
+        $cronorder = config_get_path("syslog/{$specific_log}/cronorder");
++       $reverse = (config_path_enabled('syslog', 'reverse') || $grepreverse);
+        if (($cronorder == 'forward') && !$grepreverse) {
+-               $sor = "";
++               $reverse = false;
+        }
+-       if (($cronorder == 'reverse') ||  $grepreverse) {
+-               $sor = "-r";
++       if (($cronorder == 'reverse') || $grepreverse) {
++               $reverse = true;
+        }
+        $logarr = array();
+-       $grepline = "  ";
+-       if (is_array($grepfor)) {
+-               $invert = '';
+-               if ((strpos($grepfor[0], '!') === 0)) {
+-                       $grepfor[0] = substr($grepfor[0], 1);
+-                       $invert = '-v';
+-               }
+-               /* Ensure the user-supplied filter is sane */
+-               $filtertext = cleanup_regex_pattern(implode("|", $grepfor));
+-               if (!empty($filtertext)) {
+-                       $grepline .= " | /usr/bin/egrep {$invert} -- " . escapeshellarg($filtertext);
+-               }
+-       }
+-       if (is_array($grepinvert)) {
+-               /* Ensure the user-supplied filter is sane */
+-               $filtertext = cleanup_regex_pattern(implode("|", $grepinvert));
+-               if (!empty($filtertext)) {
+-                       $grepline .= " | /usr/bin/egrep -v -- " . escapeshellarg($filtertext);
+-               }
+-       }
+        if (is_dir($logfile)) {
+                $logarr = array(sprintf(gettext("File %s is a directory."), $logfile));
+        } elseif (file_exists($logfile) && filesize($logfile) == 0) {
+                $logarr = array(gettext("Log file started."));
+        } else {
+-               exec(system_log_get_cat() . ' ' . sort_related_log_files($logfile, true, true) . "{$grepline} | /usr/bin/tail {$sor} -n " . escapeshellarg($tail), $logarr);
++                $related_files = sort_related_log_files($logfile, false, false);
++                $logarr = [];
++                foreach ($related_files as $file) {
++                        if (count($logarr) >= $tail * 3) break;
++                        if (substr($file, -4) === '.bz2') {
++                                $fh = bzopen($file, 'r');
++                                $buffer = '';
++                                while (!feof($fh)) {
++                                        $buffer .= bzread($fh, 65536);
++                                }
++                                bzclose($fh);
++                                $lines = array_filter(explode("\n", $buffer));
++                        } else {
++                                $lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
++                        }
++                        $logarr = array_merge($logarr, $lines);
++                }
++                if (is_array($grepfor) && !empty($grepfor)) {
++                        $invert = false;
++                        $pattern = implode("|", $grepfor);
++                        if (strpos($pattern, '!') === 0) {
++                                $pattern = substr($pattern, 1);
++                                $invert = true;
++                        }
++                        $pattern = cleanup_regex_pattern($pattern);
++                        if (!empty($pattern)) {
++                                $logarr = array_filter($logarr, function($line) use ($pattern, $invert) {
++                                        $match = (bool)preg_match('/' . $pattern . '/i', $line);
++                                        return $invert ? !$match : $match;
++                                });
++                        }
++                }
++                if (is_array($grepinvert) && !empty($grepinvert)) {
++                        $pattern = cleanup_regex_pattern(implode("|", $grepinvert));
++                        if (!empty($pattern)) {
++                                $logarr = array_filter($logarr, function($line) use ($pattern) {
++                                        return !preg_match('/' . $pattern . '/i', $line);
++                                });
++                        }
++                }
++                $logarr = array_values($logarr);
++                if ($reverse) {
++                        $logarr = array_reverse($logarr);
++                }
++                $logarr = array_slice($logarr, 0, (int)$tail);
+        }
+ 
+        if ($format == 'none') {
+@@ -821,7 +845,22 @@
+ 
+        if ($logfile_type != 'utx') {
+                # Get a bunch of log entries.
+-               exec(system_log_get_cat() . ' ' . sort_related_log_files($logfile, true, true) . " | /usr/bin/tail -r -n {$tail}", $logarr);
++               $logarr = [];
++               $related_files = sort_related_log_files($logfile, false, false);
++               foreach ($related_files as $file) {
++                       if (substr($file, -4) === '.bz2') {
++                               $fh = bzopen($file, 'r');
++                               while (!feof($fh)) {
++                                       $line = bzread($fh, 8192);
++                                       $logarr = array_merge($logarr, explode("\n", $line));
++                               }
++                               bzclose($fh);
++                       } else {
++                               $lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
++                               $logarr = array_merge($logarr, $lines);
++                       }
++               }
++               $logarr = array_slice(array_reverse($logarr), 0, $tail);
+        } else {
+                $_gb = exec("/usr/bin/last --libxo=json", $rawdata, $rc);
+                if ($rc == 0) {
+@@ -1210,7 +1249,15 @@
                 return '';
         }
 
@@ -17,7 +133,7 @@
         $portstr = "";
         if ($service) {
                 $portstr = sprintf('<span title="' . gettext('Service %1$s/%2$s: %3$s') . '">' . htmlspecialchars($port) . '</span>', $port, $proto, $service);
-@@ -1221,31 +1229,27 @@
+@@ -1221,31 +1268,27 @@
  }
 
  function find_rule_by_number($rulenum, $trackernum, $type="block") {
@@ -42,20 +158,20 @@
 -       } else {
 -               $_gb = exec("/sbin/pfctl -vvPsr | /usr/bin/egrep " . escapeshellarg($lookup_pattern), $buffer);
 -       }
++       $lookup_pattern = ($trackernum == "0") ? "/^@{$rulenum}\([0-9]+\)\s+{$type}\s+.*\s+log\s+/" : "/^@[0-9]+\s+{$type}\s+.*\s+log\s+.*\s+ridentifier\s+{$trackernum}/";
 +        static $data_sr = null;
 +        static $data_sn = null;
-+        if ($data_sr === null) {
-+                $cmd = "/sbin/pfctl -vvPsr";
-+                $output = shell_exec($cmd);
-+               $data_sr = explode("\n", $output);
-+        }
-+        if ($data_sn === null) {
-+                $cmd = "/sbin/pfctl -vvPsn -a \"miniupnpd\"";
-+                $output = shell_exec($cmd);
-+                $data_sn = explode("\n", $output);
-+        }
-+        $lookup_pattern = ($trackernum == "0") ? "/^@{$rulenum}\([0-9]+\)\s+{$type}\s+.*\s+log\s+/" : "/^@[0-9]+\s+{$type}\s+.*\s+log\s+.*\s+ridentifier\s+{$trackernum}/";
-+        $buffer = preg_grep($lookup_pattern, ($type == "rdr") ? $data_sn : $data_sr);
++       if ($type == "rdr") {
++               if ($data_sn === null) {
++                       $data_sn = explode("\n", shell_exec("/sbin/pfctl -vvPsn -a \"miniupnpd\""));
++               }
++               $buffer = preg_grep($lookup_pattern, $data_sn);
++       } else {
++               if ($data_sr === null) {
++                       $data_sr = explode("\n", shell_exec("/sbin/pfctl -vvPsr"));
++               }
++               $buffer = preg_grep($lookup_pattern, $data_sr);
++       }
         if (is_array($buffer)) {
                 return $buffer[0];
         }
