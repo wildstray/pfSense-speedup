@@ -4,6 +4,6 @@ A collection of pfSense System patches to speed up the dashboard. This is a WIP 
  - **util.inc.patch**: speedup of isvalidpid(), is_process_running(), get_sysctl(), route_table() on util.inc
  - **functions.inc.php.patch**: speedup of get_mbuf(), get_load_average() on functions.inc.php
  - **pfsense-utils.inc.patch**: speedup of get_interface_info() on pfsense-utils.inc
- - **syslog.inc.patch**: speedup of find_rule_by_number(), get_port_with_service() on syslog.inc
+ - **syslog.inc.patch**: speedup of find_rule_by_number(), get_port_with_service(), dump_log(), conv_log_filter() on syslog.inc
 
 **WARNING: this patches are tested with CE 2.7.2 only**
