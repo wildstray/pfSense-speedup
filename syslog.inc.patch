@@ -116,20 +116,21 @@
         } else {
                 $_gb = exec("/usr/bin/last --libxo=json", $rawdata, $rc);
                 if ($rc == 0) {
-@@ -1210,7 +1249,15 @@
+@@ -1209,8 +1248,16 @@
+        if (!$port || !is_port($port)) {
                 return '';
         }
++
++               static $cache = [];
++               $key = "{$port}:{$proto}";
++               if (isset($cache[$key])) {
++                       $service = $cache[$key];
++               } else {
++                       $service = getservbyport($port, $proto);
++                       $cache[$key] = $service;
++               }
 
 -       $service = getservbyport($port, $proto);
-+       static $cache = [];
-+       $key = "{$port}:{$proto}";
-+       if (isset($cache[$key])) {
-+               $service = $cache[$key];
-+       } else {
-+               $service = getservbyport($port, $proto);
-+               $cache[$key] = $service;
-+       }
-+
         $portstr = "";
         if ($service) {
                 $portstr = sprintf('<span title="' . gettext('Service %1$s/%2$s: %3$s') . '">' . htmlspecialchars($port) . '</span>', $port, $proto, $service);
@@ -139,9 +140,29 @@
  function find_rule_by_number($rulenum, $trackernum, $type="block") {
 -       global $g;
 -
-        /* Passing arbitrary input to grep could be a Very Bad Thing(tm) */
-        if (!is_numeric($rulenum) || !is_numeric($trackernum) || !in_array($type, array('pass', 'block', 'match', 'rdr'))) {
-                return;
+-       /* Passing arbitrary input to grep could be a Very Bad Thing(tm) */
+-       if (!is_numeric($rulenum) || !is_numeric($trackernum) || !in_array($type, array('pass', 'block', 'match', 'rdr'))) {
+-               return;
++       /* Passing arbitrary input to grep could be a Very Bad Thing(tm) */
++       if (!is_numeric($rulenum) || !is_numeric($trackernum) || !in_array($type, array('pass', 'block', 'match', 'rdr'))) {
++               return;
++       }
++       $lookup_pattern = ($trackernum == "0") ? "/^@{$rulenum}\([0-9]+\)\s+{$type}\s+.*\s+log\s+/" : "/^@[0-9]+\s+{$type}\s+.*\s+log\s+.*\s+ridentifier\s+{$trackernum}/";
++       static $data_sr = null;
++       static $data_sn = null;
++       if ($type == "rdr") {
++               if ($data_sn === null) {
++                       $data_sn = explode("\n", shell_exec("/sbin/pfctl -vvPsn -a \"miniupnpd\""));
++               }
++               $buffer = preg_grep($lookup_pattern, $data_sn);
++       } else {
++               if ($data_sr === null) {
++                       $data_sr = explode("\n", shell_exec("/sbin/pfctl -vvPsr"));
++               }
++               $buffer = preg_grep($lookup_pattern, $data_sr);
++       }
++       if (is_array($buffer)) {
++               return reset($buffer);
         }
 -
 -       if ($trackernum == "0") {
@@ -158,23 +179,9 @@
 -       } else {
 -               $_gb = exec("/sbin/pfctl -vvPsr | /usr/bin/egrep " . escapeshellarg($lookup_pattern), $buffer);
 -       }
-+       $lookup_pattern = ($trackernum == "0") ? "/^@{$rulenum}\([0-9]+\)\s+{$type}\s+.*\s+log\s+/" : "/^@[0-9]+\s+{$type}\s+.*\s+log\s+.*\s+ridentifier\s+{$trackernum}/";
-+        static $data_sr = null;
-+        static $data_sn = null;
-+       if ($type == "rdr") {
-+               if ($data_sn === null) {
-+                       $data_sn = explode("\n", shell_exec("/sbin/pfctl -vvPsn -a \"miniupnpd\""));
-+               }
-+               $buffer = preg_grep($lookup_pattern, $data_sn);
-+       } else {
-+               if ($data_sr === null) {
-+                       $data_sr = explode("\n", shell_exec("/sbin/pfctl -vvPsr"));
-+               }
-+               $buffer = preg_grep($lookup_pattern, $data_sr);
-+       }
-        if (is_array($buffer)) {
-                return $buffer[0];
-        }
+-       if (is_array($buffer)) {
+-               return $buffer[0];
+-       }
 -
         return "";
  }
